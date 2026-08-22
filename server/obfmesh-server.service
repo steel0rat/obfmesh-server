@@ -1,0 +1,63 @@
+[Unit]
+Description=obfmesh control plane (FastAPI/uvicorn)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=10
+
+[Service]
+Type=exec
+WorkingDirectory=/opt/obfmesh
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=OBFMESH_ADMIN_KEY_FILE=/etc/obfmesh/admin.key
+Environment=OBFMESH_STATIC_DIR=/opt/obfmesh/obfmesh/static
+Environment=OBFMESH_DB=/var/lib/obfmesh/obfmesh.db
+Environment=OBFMESH_LOG_LEVEL=INFO
+# The obfuscator ports have to be reachable from outside. On a stock Ubuntu 24.04 the INPUT
+# policy is ACCEPT and these rules change nothing; with ufw or a hand-written ruleset they are
+# the difference between a working spoke and a silent timeout. Set to 0 to manage them yourself.
+Environment=OBFMESH_MANAGE_INPUT=1
+# Keep the obfuscators alive across a restart of this unit (see KillMode below). Set to 1 in a
+# drop-in when `systemctl stop` must take the spokes down as well.
+Environment=OBFMESH_STOP_PROCESSES=0
+# Loopback only: TLS and the public route are Caddy's job.
+# Single worker on purpose - the SSE broker and the reconcile lock are in-process state.
+# --no-access-log: a request line adds nothing to the journal here and closes the last path by
+# which a credential placed in a URL could be written to disk.
+# --proxy-headers gives the real peer address in the auth warnings, trusted from Caddy only.
+ExecStart=/opt/obfmesh/.venv/bin/python -m uvicorn obfmesh.app:app \
+    --host 127.0.0.1 --port 8080 \
+    --no-access-log \
+    --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+LimitNOFILE=16384
+# Only the control plane is signalled on stop. The obfuscators keep running and are adopted
+# again from their pid files, so restarting this service does not drop traffic - that is what
+# orchestrator.shutdown() with OBFMESH_STOP_PROCESSES=0 is built around.
+# To stop the spokes for real: `obfmesh-ctl teardown` (or set OBFMESH_STOP_PROCESSES=1 above,
+# which also makes every `systemctl restart` drop traffic for a moment).
+KillMode=process
+
+# Root is required: the orchestrator manages WireGuard interfaces, routes and NAT.
+UMask=0077
+StateDirectory=obfmesh
+StateDirectoryMode=0700
+ConfigurationDirectory=obfmesh
+ConfigurationDirectoryMode=0700
+# /run/obfmesh holds the obfuscator pid files: wiping it on stop would make adoption impossible.
+RuntimeDirectory=obfmesh
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+LogsDirectory=obfmesh
+LogsDirectoryMode=0700
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/obfmesh /run/obfmesh /var/log/obfmesh -/etc/obfmesh -/etc/wireguard
+
+[Install]
+WantedBy=multi-user.target

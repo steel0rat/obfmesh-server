@@ -1,0 +1,29 @@
+Package: obfmesh-server
+Version: @VERSION@
+Architecture: @ARCH@
+Section: net
+Priority: optional
+Maintainer: obfmesh
+Depends: python3 (>= 3.11), python3-venv, iproute2, iptables, wireguard-tools, logrotate, systemd
+# Suggests, not Recommends: a reverse proxy is mandatory for the router to reach this
+# server, but which one is the admin's decision - apt must not install a web server on
+# its own and rewrite the HTTP setup of the box.
+Suggests: caddy | nginx
+Installed-Size: @INSTALLED_SIZE@
+Description: obfmesh control plane (FastAPI/uvicorn)
+ obfmesh runs N parallel "obfuscator + WireGuard" spokes between a router and this
+ server so that the throughput ceiling of a single wg-obfuscator process (~135 Mbit/s,
+ measured) stops being the limit.
+ .
+ This package installs the control plane: the REST API and the web panel on
+ 127.0.0.1:8080, the orchestrator that keeps swg{i}, the obfuscator processes and the
+ NAT rules in the state stored in SQLite, and the obfmesh-ctl helper for local control
+ without HTTP.
+ .
+ Two things are deliberately not here. The wg-obfuscator binary is not shipped: its
+ path is a setting (PATCH /api/settings, obfuscator_bin). The reverse proxy is not
+ configured: the service listens on loopback only, so publishing it on 443 with TLS is
+ a separate, mandatory step - see /etc/obfmesh/caddy-snippet.txt after installation.
+ .
+ The Python dependencies are installed by the postinst into a virtualenv under
+ /opt/obfmesh/.venv, from the network or from the wheels vendored into the package.

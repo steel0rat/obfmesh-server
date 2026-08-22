@@ -1,0 +1,39 @@
+#!/bin/sh
+# obfmesh-server prerm.
+#
+# On an upgrade nothing is touched: the control plane is restarted by the postinst and
+# the obfuscators keep carrying traffic across it by design.
+# On a removal the spokes have to go down while the code is still on disk - after dpkg
+# has removed the files, obfmesh-ctl cannot stop anything any more.
+set -e
+
+UNIT=obfmesh-server.service
+CTL=/usr/sbin/obfmesh-ctl
+
+log() { printf '[obfmesh] %s\n' "$*"; }
+
+case "$1" in
+remove | deconfigure)
+	if command -v systemctl >/dev/null 2>&1; then
+		systemctl stop "$UNIT" || true
+		systemctl disable "$UNIT" || true
+	fi
+	# `systemctl stop` deliberately leaves the obfuscators running (OBFMESH_STOP_PROCESSES=0):
+	# a restart of the control plane must not drop traffic. A removal is not a restart, so
+	# they are stopped here together with the swg{i} interfaces.
+	if [ -x "$CTL" ]; then
+		"$CTL" teardown --interfaces || log "WARNING: $CTL teardown failed, check 'pgrep -af wg-obfuscator'"
+	fi
+	cat <<'EOF'
+[obfmesh] The NAT and FORWARD rules are shared by every spoke and are NOT removed here.
+[obfmesh] Remove them by hand once no obfmesh instance needs them any more:
+    iptables -t nat -D POSTROUTING -s 10.77.0.0/16 ! -d 10.77.0.0/16 -j MASQUERADE
+    iptables -D FORWARD -s 10.77.0.0/16 -j ACCEPT
+    iptables -D FORWARD -d 10.77.0.0/16 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+    for p in $(seq 48201 48210); do iptables -D INPUT -p udp --dport $p -j ACCEPT 2>/dev/null; done
+EOF
+	;;
+upgrade | failed-upgrade) ;;
+esac
+
+exit 0

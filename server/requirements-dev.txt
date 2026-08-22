@@ -1,0 +1,6 @@
+# Только для запуска тестов: на боевой сервер не ставится (install.sh их не читает).
+#   python -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+#   .venv/bin/python -m pytest tests -q
+-r requirements.txt
+pytest>=8,<9
+httpx>=0.27,<0.29

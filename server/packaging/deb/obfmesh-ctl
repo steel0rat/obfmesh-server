@@ -1,0 +1,6 @@
+#!/bin/sh
+# obfmesh local control: teardown | reconcile | status.
+#
+# Same wrapper install.sh writes to /usr/local/sbin/obfmesh-ctl. PYTHONPATH, because
+# the package is not pip-installed into the virtualenv - only its dependencies are.
+exec env PYTHONPATH=/opt/obfmesh /opt/obfmesh/.venv/bin/python -m obfmesh.cli "$@"

@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<title>obfmesh</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%231a1a19'/%3E%3Cg stroke='%233987e5' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M4 4.5h8M4 8h8M4 11.5h8'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- icon sprite: every status colour is paired with a shape and a label -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 8.4 6.2 11.8 13.2 4.4"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.9"/><path d="M8 4.4V8.2l2.6 1.5"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.3 14.6 13.6H1.4L8 2.3Z"/><path d="M8 6.4v3.1"/><path d="M8 11.7h.01"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="1.8"/></symbol>
+  <symbol id="i-dash" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.5 8h9"/></symbol>
+  <symbol id="i-info" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.9"/><path d="M8 7.4v3.6"/><path d="M8 5.1h.01"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.6" y="5.6" width="7.8" height="7.8" rx="1.7"/><path d="M10.4 5.6V4.3a1.7 1.7 0 0 0-1.7-1.7H4.3a1.7 1.7 0 0 0-1.7 1.7v4.4a1.7 1.7 0 0 0 1.7 1.7h1.3"/></symbol>
+  <symbol id="i-download" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.6v7.6"/><path d="M4.8 7.2 8 10.4l3.2-3.2"/><path d="M2.8 13.3h10.4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.9 4.4h10.2"/><path d="M6.4 4.4V2.9h3.2v1.5"/><path d="M4.4 4.4 5 13.1h6l.6-8.7"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 3.4v9.2M3.4 8h9.2"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3.4 8h9.2"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.4 3.2H3.6v9.6h2.8"/><path d="M9.6 5.4 12.2 8l-2.6 2.6"/><path d="M12.2 8H6"/></symbol>
+  <symbol id="i-key" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.6" cy="10.4" r="2.8"/><path d="M7.6 8.4 13 3"/><path d="M10.6 5.4l1.6 1.6"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.4 8a5.4 5.4 0 1 1-1.7-3.9"/><path d="M13.6 2.4v3.2h-3.2"/></symbol>
+  <symbol id="i-down" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10"/><path d="M4.4 9.4 8 13l3.6-3.6"/></symbol>
+  <symbol id="i-up" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3"/><path d="M4.4 6.6 8 3l3.6 3.6"/></symbol>
+</svg>
+
+<!-- ============ auth gate ============ -->
+<div class="gate" id="gate" hidden>
+  <form class="gate__card" id="gate-form" autocomplete="off">
+    <div class="gate__title">obfmesh</div>
+    <p class="gate__sub">Панель управления обфусцированным WireGuard. Нужен админский API-ключ.</p>
+    <label class="field">
+      <span class="field__label">API-ключ (заголовок X-API-Key)</span>
+      <input type="password" id="gate-key" autocomplete="off" spellcheck="false" placeholder="••••••••••••••••" required>
+    </label>
+    <label class="checkbox">
+      <input type="checkbox" id="gate-remember">
+      <span>Запомнить в этом браузере</span>
+    </label>
+    <p class="gate__error" id="gate-error" hidden></p>
+    <div style="margin-top:20px">
+      <button type="submit" class="btn btn--primary" id="gate-submit" style="width:100%">
+        <svg aria-hidden="true"><use href="#i-key"/></svg>Войти
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- ============ app ============ -->
+<div id="app" hidden>
+
+  <header class="topbar">
+    <div class="wrap topbar__row">
+      <div class="brand">
+        <span class="brand__name">obfmesh</span>
+        <span class="brand__sub" id="brand-host">—</span>
+      </div>
+      <span class="chip" id="version-chip" title="Версия конфигурации: растёт при каждом изменении настроек или списка клиентов">
+        версия конфигурации <b id="version-value" style="color:var(--ink)">—</b>
+      </span>
+      <span class="conn" id="conn">
+        <span class="conn__dot"></span>
+        <span id="conn-text">подключение…</span>
+      </span>
+      <button type="button" class="icon-btn" id="btn-refresh" title="Обновить сейчас" aria-label="Обновить сейчас">
+        <svg aria-hidden="true"><use href="#i-refresh"/></svg>
+      </button>
+      <button type="button" class="icon-btn" id="btn-logout" title="Забыть API-ключ" aria-label="Забыть API-ключ" hidden>
+        <svg aria-hidden="true"><use href="#i-logout"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <!-- ---------- 1. состояние ---------- -->
+    <section class="section card" id="section-status" aria-labelledby="h-status">
+      <div class="card__head">
+        <h2 id="h-status">Состояние</h2>
+        <span class="chip" id="masking-chip">маскировка —</span>
+      </div>
+
+      <div class="overview" id="overview">
+        <div class="tile tile--hero">
+          <div class="tile__label">Отдача клиентам сейчас</div>
+          <div class="hero__value"><span id="hero-value">—</span><span class="unit" id="hero-unit">Мбит/с</span></div>
+          <div class="hero__split">
+            <span><svg width="11" height="11" style="vertical-align:-1px" aria-hidden="true"><use href="#i-down"/></svg> клиентам <b id="hero-tx">—</b></span>
+            <span><svg width="11" height="11" style="vertical-align:-1px" aria-hidden="true"><use href="#i-up"/></svg> от клиентов <b id="hero-rx">—</b></span>
+          </div>
+          <div class="tile__sub" id="hero-ceiling">—</div>
+        </div>
+
+        <div class="tile">
+          <div class="tile__label">Лучей поднято</div>
+          <div class="tile__value" id="tile-spokes">—</div>
+          <div class="tile__sub" id="tile-spokes-sub">—</div>
+        </div>
+
+        <div class="tile">
+          <div class="tile__label">Передано всего</div>
+          <div class="tile__value" id="tile-total">—</div>
+          <div class="tile__sub" id="tile-total-sub">с момента поднятия лучей</div>
+        </div>
+
+        <div class="tile">
+          <div class="tile__label">Клиентов</div>
+          <div class="tile__value" id="tile-clients">—</div>
+          <div class="tile__sub" id="tile-clients-sub">—</div>
+        </div>
+      </div>
+
+      <div class="meta-line" id="meta-line"></div>
+
+      <div id="status-notices"></div>
+
+      <div class="table-scroll" style="margin-top:16px">
+        <table id="spokes-table">
+          <caption class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">
+            Состояние лучей: интерфейс, рукопожатие, счётчики приёма и передачи
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Луч</th>
+              <th scope="col">Статус</th>
+              <th scope="col">Рукопожатие</th>
+              <th scope="col">Принято от клиентов</th>
+              <th scope="col">Отдано клиентам</th>
+              <th scope="col">Загрузка луча</th>
+            </tr>
+          </thead>
+          <tbody id="spokes-body">
+            <tr><td colspan="6" class="empty">Загрузка…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">
+        Счётчики берутся с серверных интерфейсов <code>swg{i}</code>: «принято от клиентов» — их отдача,
+        «отдано клиентам» — их скачивание. Скорость считается по разнице счётчиков между опросами.
+      </p>
+    </section>
+
+    <!-- ---------- 2+3. настройки ---------- -->
+    <section class="section card" id="section-settings" aria-labelledby="h-settings">
+      <div class="card__head">
+        <h2 id="h-settings">Настройки лучей</h2>
+      </div>
+      <p class="card__note">
+        Луч — независимая пара «обфускатор + WireGuard» от клиента до сервера. Изменения применяются
+        по кнопке внизу: сервер приводит систему к новому состоянию и не трогает уже работающие лучи.
+      </p>
+
+      <form id="settings-form">
+        <div class="control-grid">
+
+          <div>
+            <div class="field__label">Число лучей</div>
+            <div class="stepper">
+              <button type="button" class="round-btn" id="spokes-minus" aria-label="Убавить луч">
+                <svg aria-hidden="true"><use href="#i-minus"/></svg>
+              </button>
+              <input type="range" id="spokes-range" min="1" max="10" step="1" value="1"
+                     aria-label="Число лучей" aria-describedby="spokes-estimate">
+              <button type="button" class="round-btn" id="spokes-plus" aria-label="Добавить луч">
+                <svg aria-hidden="true"><use href="#i-plus"/></svg>
+              </button>
+              <span class="stepper__value num" id="spokes-value">1</span>
+              <span class="stepper__unit" id="spokes-word">луч</span>
+            </div>
+            <div class="range-scale"><span>1</span><span>10</span></div>
+
+            <div class="estimate" id="spokes-estimate">
+              <div class="estimate__value" id="estimate-value">—</div>
+              <div class="estimate__note" id="estimate-note">—</div>
+            </div>
+
+            <p class="hint">
+              Замеры на этом стенде (сервер 4 ядра, клиент NanoPi R3S): <b>два луча — 359–373 Мбит/с</b>,
+              три — 210–222 Мбит/с. Прибавку съедает процессор клиента: он и на двух лучах загружен
+              на 92–98 %, а каждый луч — это ещё один процесс обфускатора.
+            </p>
+          </div>
+
+          <div>
+            <div class="field__label">Как складывается скорость</div>
+            <div class="modes">
+              <div class="mode mode--static">
+                <span class="mode__title">Каждый луч отдельный</span>
+                <span class="mode__desc">
+                  У луча свой адрес <code>10.77.{i}.2/30</code> на <code>owg{i}</code>, своя таблица
+                  маршрутов <code>51820+i</code> и своё правило <code>from 10.77.{i}.2</code>. Общего
+                  адреса на все лучи нет: сервер держит в <code>allowed-ips</code> пира ровно адрес
+                  этого луча и ничего сверх него.
+                </span>
+              </div>
+              <div class="mode mode--static">
+                <span class="mode__title">Потребитель привязан к лучу</span>
+                <span class="mode__desc">
+                  Агрегация получается на клиенте: разные секции Forkop или sing-box уходят в разные
+                  лучи через <code>bind_interface owg1</code>, <code>bind_interface owg2</code>.
+                  Один поток быстрее одного луча (~180 Мбит/с) не станет — распараллелить одну
+                  TCP-сессию нельзя, суммарная скорость набирается разными сервисами.
+                </span>
+              </div>
+              <div class="mode mode--static">
+                <span class="mode__title">Оптимум — два луча <span class="mode__tag mode__tag--good">по замерам</span></span>
+                <span class="mode__desc">
+                  Два луча дали 359–373 Мбит/с, три — 210–222 Мбит/с. Третий и последующие лучи имеют
+                  смысл только на более сильном клиенте, чем NanoPi R3S.
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="field">
+            <span class="field__label">Адрес сервера для клиентов</span>
+            <input type="text" id="set-host" spellcheck="false" autocomplete="off" placeholder="45.136.127.10">
+          </label>
+          <label class="field">
+            <span class="field__label">MTU</span>
+            <input type="number" id="set-mtu" min="1000" max="1500" step="1" placeholder="1400">
+          </label>
+          <div class="field">
+            <span class="field__label">Ключ обфускации</span>
+            <div style="display:flex;align-items:center;gap:8px;height:35px">
+              <span class="chip" id="key-chip">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="settings-notices"></div>
+
+        <div class="apply-bar">
+          <div class="diff" id="settings-diff">Изменений нет</div>
+          <button type="button" class="btn btn--ghost" id="settings-reset" disabled>Отменить</button>
+          <button type="submit" class="btn btn--primary" id="settings-apply" disabled>
+            <svg aria-hidden="true"><use href="#i-check"/></svg>Применить
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ---------- 4. клиенты ---------- -->
+    <section class="section card" id="section-clients" aria-labelledby="h-clients">
+      <div class="card__head">
+        <h2 id="h-clients">Клиенты</h2>
+      </div>
+      <p class="card__note">
+        Клиенту выдаётся токен и бандл — конфигурация всех лучей с ключами. Токен показывается
+        <b>один раз</b> при создании и на сервере больше не хранится в открытом виде.
+      </p>
+
+      <form class="create-row" id="client-form" autocomplete="off">
+        <label class="field">
+          <span class="field__label">Имя нового клиента</span>
+          <input type="text" id="client-name" placeholder="nanopi-home" spellcheck="false"
+                 pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,30}" maxlength="31" required
+                 title="Латиница, цифры, точка, дефис, подчёркивание; 1–31 символ">
+        </label>
+        <button type="submit" class="btn btn--primary" id="client-create">
+          <svg aria-hidden="true"><use href="#i-plus"/></svg>Создать
+        </button>
+      </form>
+
+      <div class="table-scroll">
+        <table id="clients-table">
+          <thead>
+            <tr>
+              <th scope="col">Имя</th>
+              <th scope="col">Создан</th>
+              <th scope="col">Последняя выдача бандла</th>
+              <th scope="col" style="text-align:right">Действия</th>
+            </tr>
+          </thead>
+          <tbody id="clients-body">
+            <tr><td colspan="4" class="empty">Загрузка…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============ dialogs ============ -->
+
+<dialog id="token-dialog" aria-labelledby="token-title">
+  <div class="dialog__body">
+    <div class="dialog__title" id="token-title">Клиент создан</div>
+    <p class="dialog__text">
+      Токен клиента <b id="token-client">—</b>. Он показывается один раз — скопируйте сейчас.
+      Если токен потерян, клиента придётся создать заново.
+    </p>
+
+    <div class="subhead">Токен</div>
+    <div class="secret">
+      <code id="token-value">—</code>
+      <button type="button" class="icon-btn" id="token-copy" title="Скопировать токен" aria-label="Скопировать токен">
+        <svg aria-hidden="true"><use href="#i-copy"/></svg>
+      </button>
+    </div>
+
+    <div class="subhead">Команда для роутера (OpenWrt)</div>
+    <div class="secret">
+      <code id="token-uci">—</code>
+      <button type="button" class="icon-btn" id="uci-copy" title="Скопировать команду" aria-label="Скопировать команду">
+        <svg aria-hidden="true"><use href="#i-copy"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="dialog__foot">
+    <button type="button" class="btn btn--ghost" id="token-bundle">
+      <svg aria-hidden="true"><use href="#i-download"/></svg>Скачать бандл
+    </button>
+    <button type="button" class="btn btn--primary" id="token-close">Готово, токен сохранён</button>
+  </div>
+</dialog>
+
+<dialog id="confirm-dialog" aria-labelledby="confirm-title">
+  <div class="dialog__body">
+    <div class="dialog__title" id="confirm-title">Удалить клиента</div>
+    <p class="dialog__text" id="confirm-text">—</p>
+  </div>
+  <div class="dialog__foot">
+    <button type="button" class="btn btn--ghost" id="confirm-cancel">Отмена</button>
+    <button type="button" class="btn btn--danger" id="confirm-ok">
+      <svg aria-hidden="true"><use href="#i-trash"/></svg>Удалить
+    </button>
+  </div>
+</dialog>
+
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<script src="app.js" defer></script>
+</body>
+</html>

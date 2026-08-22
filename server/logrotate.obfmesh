@@ -1,0 +1,16 @@
+# obfmesh: logs of the wg-obfuscator processes, installed as /etc/logrotate.d/obfmesh.
+#
+# copytruncate is mandatory here, not a preference: the log fd is handed to the
+# obfuscator by the orchestrator at spawn time, so a rotation that renames the file
+# would leave every running process writing into a deleted inode until it restarts.
+/var/log/obfmesh/*.log {
+    size 20M
+    rotate 7
+    copytruncate
+    compress
+    delaycompress
+    missingok
+    notifempty
+    su root root
+    create 0640 root root
+}

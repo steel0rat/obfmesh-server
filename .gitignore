@@ -1,0 +1,19 @@
+# build artifacts
+dist/
+build/
+*.deb
+*.ipk
+*.apk
+*.tar.gz
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# local state, never commit: these carry keys and tokens
+*.key
+*.token
+secrets.env

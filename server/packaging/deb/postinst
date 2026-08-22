@@ -1,0 +1,176 @@
+#!/bin/sh
+# obfmesh-server postinst.
+#
+# dpkg owns the files; this script owns the state dpkg cannot carry: the virtualenv
+# under /opt/obfmesh/.venv, the admin key, the mode-0700 directories and the systemd
+# wiring. Idempotent - a re-run with unchanged requirements.txt installs nothing.
+set -e
+
+PREFIX=/opt/obfmesh
+VENV="$PREFIX/.venv"
+REQ="$PREFIX/requirements.txt"
+WHEELS="$PREFIX/wheels"
+CONF_DIR=/etc/obfmesh
+STATE_DIR=/var/lib/obfmesh
+LOG_DIR=/var/log/obfmesh
+ADMIN_KEY_FILE="$CONF_DIR/admin.key"
+UNIT=obfmesh-server.service
+PYTHON=/usr/bin/python3
+# Fixed by the shipped unit (--port 8080). Change both together, or override the
+# ExecStart in a drop-in.
+API_PORT=8080
+
+log() { printf '[obfmesh] %s\n' "$*"; }
+die() { printf '[obfmesh] ERROR: %s\n' "$*" >&2; exit 1; }
+
+case "$1" in
+configure) ;;
+abort-upgrade | abort-remove | abort-deconfigure) exit 0 ;;
+*) exit 0 ;;
+esac
+
+umask 077
+
+# ---------------------------------------------------------------- directories
+
+# systemd would create these too (ConfigurationDirectory/StateDirectory/LogsDirectory),
+# but the admin key has to exist before the first start, so they are made here.
+install -d -m 0700 -o root -g root "$CONF_DIR" "$STATE_DIR" "$LOG_DIR"
+
+# ---------------------------------------------------------------- admin key
+
+if [ ! -s "$ADMIN_KEY_FILE" ]; then
+	(
+		umask 077
+		"$PYTHON" -c 'import secrets; print(secrets.token_urlsafe(32))' >"$ADMIN_KEY_FILE"
+	) || die "cannot generate the admin key in $ADMIN_KEY_FILE"
+	log "generated the admin key: $ADMIN_KEY_FILE (the value is never printed by this script)"
+fi
+chown root:root "$ADMIN_KEY_FILE"
+chmod 0600 "$ADMIN_KEY_FILE"
+
+# ---------------------------------------------------------------- virtualenv
+
+if [ ! -x "$VENV/bin/python" ]; then
+	log "creating the virtualenv $VENV"
+	"$PYTHON" -m venv "$VENV" || die "python3 -m venv failed; is python3-venv installed?"
+fi
+
+req_hash="$(sha256sum "$REQ" | cut -d' ' -f1)"
+req_stamp="$VENV/.requirements.sha256"
+if [ ! -f "$req_stamp" ] || [ "$(cat "$req_stamp")" != "$req_hash" ]; then
+	if [ -d "$WHEELS" ] && [ -n "$(ls -A "$WHEELS" 2>/dev/null)" ]; then
+		log "installing the python dependencies from the wheels vendored in the package"
+		"$VENV/bin/python" -m pip install --quiet --no-index --find-links "$WHEELS" \
+			--requirement "$REQ" ||
+			die "pip could not install from $WHEELS; the wheels do not match this interpreter"
+	else
+		log "installing the python dependencies from the network"
+		"$VENV/bin/python" -m pip install --quiet --upgrade pip || true
+		"$VENV/bin/python" -m pip install --quiet --requirement "$REQ" ||
+			die "pip could not install the dependencies. Give the host network access, or rebuild the package with 'make wheels' for an offline install, then run: apt-get -f install"
+	fi
+	printf '%s\n' "$req_hash" >"$req_stamp"
+else
+	log "python dependencies already match requirements.txt"
+fi
+
+# ---------------------------------------------------------------- first-boot values
+
+# OBFMESH_EXTERNAL_HOST and OBFMESH_OBFUSCATOR_BIN are read by the core only while the
+# settings row is being created, so they have to reach the service, not just this
+# script. Both stay changeable later through PATCH /api/settings.
+DROPIN_DIR="/etc/systemd/system/$UNIT.d"
+if [ -n "${OBFMESH_EXTERNAL_HOST:-}${OBFMESH_OBFUSCATOR_BIN:-}" ] &&
+	[ ! -e "$DROPIN_DIR/10-bootstrap.conf" ]; then
+	install -d -m 0755 -o root -g root "$DROPIN_DIR"
+	{
+		printf '# Written by the obfmesh-server postinst: first-boot values for the settings row.\n'
+		printf '[Service]\n'
+		if [ -n "${OBFMESH_EXTERNAL_HOST:-}" ]; then
+			printf 'Environment=OBFMESH_EXTERNAL_HOST=%s\n' "$OBFMESH_EXTERNAL_HOST"
+		fi
+		if [ -n "${OBFMESH_OBFUSCATOR_BIN:-}" ]; then
+			printf 'Environment=OBFMESH_OBFUSCATOR_BIN=%s\n' "$OBFMESH_OBFUSCATOR_BIN"
+		fi
+	} >"$DROPIN_DIR/10-bootstrap.conf"
+	chmod 0644 "$DROPIN_DIR/10-bootstrap.conf"
+	log "wrote $DROPIN_DIR/10-bootstrap.conf"
+fi
+
+# ---------------------------------------------------------------- reverse proxy snippet
+
+# The same text install.sh drops next to the config, so it can be copied on the server
+# itself instead of from a terminal scrollback.
+cat >"$CONF_DIR/caddy-snippet.txt" <<EOF
+# obfmesh: publish the API and the UI at https://<this-host>/obfmesh
+# Put this inside the site block of /etc/caddy/Caddyfile, then: systemctl reload caddy
+handle_path /obfmesh/* {
+    reverse_proxy 127.0.0.1:$API_PORT {
+        flush_interval -1          # required: /api/events is a streaming response
+    }
+}
+EOF
+chmod 0644 "$CONF_DIR/caddy-snippet.txt"
+
+# ---------------------------------------------------------------- warnings
+
+if [ -f "/etc/systemd/system/$UNIT" ]; then
+	log "WARNING: /etc/systemd/system/$UNIT exists and shadows the unit of this package"
+	log "         (it is what install.sh writes). Remove it, then: systemctl daemon-reload"
+fi
+
+if [ -f /usr/local/sbin/obfmesh-ctl ]; then
+	log "NOTE: /usr/local/sbin/obfmesh-ctl from install.sh comes first in PATH; the packaged"
+	log "      helper is /usr/sbin/obfmesh-ctl. Both drive the same virtualenv."
+fi
+
+OBF_BIN="${OBFMESH_OBFUSCATOR_BIN:-/usr/local/bin/wg-obfuscator}"
+if [ ! -x "$OBF_BIN" ]; then
+	log "WARNING: no executable obfuscator at $OBF_BIN"
+	log "         spokes stay down until wg-obfuscator 1.6+ is in place; the path is a setting"
+elif ! "$OBF_BIN" --help 2>&1 | grep -qi masking; then
+	log "WARNING: $OBF_BIN does not mention 'masking' in --help"
+	log "         obfmesh refuses to start a spoke without masking support (the ISP throttles"
+	log "         unmasked flows), so update wg-obfuscator to 1.6+"
+fi
+
+# ---------------------------------------------------------------- systemd
+
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl daemon-reload || true
+	if [ -z "$2" ]; then
+		# First installation.
+		systemctl enable --now "$UNIT" ||
+			log "WARNING: could not enable/start $UNIT, see: journalctl -u $UNIT -n 80"
+	else
+		# Upgrade: restart only what was already running. The obfuscator processes survive
+		# a restart of the control plane and are adopted again from their pid files.
+		systemctl try-restart "$UNIT" ||
+			log "WARNING: could not restart $UNIT, see: journalctl -u $UNIT -n 80"
+	fi
+fi
+
+if ! ss -Hltn "sport = :443" 2>/dev/null | grep -q .; then
+	log "WARNING: nothing is listening on :443 - a router cannot reach this server yet."
+	log "         The service listens on 127.0.0.1:$API_PORT only; publishing it behind a"
+	log "         reverse proxy is a separate, mandatory step: $CONF_DIR/caddy-snippet.txt"
+fi
+
+cat <<EOF
+
+[obfmesh] obfmesh-server is installed under $PREFIX, state in $STATE_DIR.
+
+Admin key (read it yourself, it is not printed here):
+    sudo cat $ADMIN_KEY_FILE
+
+Local control (no HTTP):
+    obfmesh-ctl status
+    obfmesh-ctl reconcile
+    obfmesh-ctl teardown          # stops the obfuscators that survive systemctl stop
+
+Logs:      journalctl -u $UNIT -f
+           $LOG_DIR/obf{i}.log (rotated by /etc/logrotate.d/obfmesh)
+EOF
+
+exit 0

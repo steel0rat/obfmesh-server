@@ -1,0 +1,34 @@
+#!/bin/sh
+# obfmesh-server postrm.
+#
+#   remove - drop what the postinst built and dpkg does not own (the virtualenv).
+#            The database, the keys and the logs stay: a reinstall picks them up.
+#   purge  - remove the state as well. /etc/obfmesh holds the admin key and the
+#            obfuscator configs with the obfuscation key in them, so purge means purge.
+set -e
+
+PREFIX=/opt/obfmesh
+
+case "$1" in
+remove)
+	rm -rf "$PREFIX/.venv"
+	# obfmesh-ctl runs without PYTHONDONTWRITEBYTECODE (the unit sets it, the wrapper
+	# does not), so __pycache__ appears at runtime and dpkg knows nothing about it.
+	# Left in place it keeps /opt/obfmesh alive with stale byte code in it.
+	find "$PREFIX" -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
+	rmdir "$PREFIX/obfmesh/static" "$PREFIX/obfmesh" "$PREFIX" 2>/dev/null || true
+	;;
+purge)
+	# Every file dpkg owned here is already gone; what is left is what this package
+	# created outside dpkg's bookkeeping.
+	rm -rf "$PREFIX" /var/lib/obfmesh /var/log/obfmesh /etc/obfmesh
+	rm -rf /etc/systemd/system/obfmesh-server.service.d
+	;;
+upgrade | failed-upgrade | abort-install | abort-upgrade | disappear) ;;
+esac
+
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl daemon-reload || true
+fi
+
+exit 0
