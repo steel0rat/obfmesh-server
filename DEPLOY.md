@@ -38,7 +38,7 @@ cat /etc/openwrt_release | head -3; uname -r; nproc
 apk info -e ip-full wireguard-tools curl jsonfilter
 ls -l /usr/bin/wg-obfuscator
 ip route show table 51821; ip route show table 51822    # должны быть пустыми
-ip rule show | grep -E ' 3200[0-9]:' || echo 'приоритеты свободны'
+ip rule show | grep -E '^320[0-9][0-9]:' || echo 'приоритеты свободны'
 ```
 
 **Проверка.** `wg`, `ip`, `iptables` есть на сервере; на роутере известно, каких пакетов не
@@ -243,10 +243,13 @@ ip -V && ip rule show | head -3        # ip на месте и умеет rule
 ```
 
 ```sh
-apk add --allow-untrusted ./obfmesh-1.2.0-r1.apk ./luci-app-obfmesh-1.2.0-r1.apk
+apk add --allow-untrusted ./obfmesh-1.3.0-r1.apk ./luci-app-obfmesh-1.3.0-r1.apk
 install -m 0755 wg-obfuscator /usr/bin/wg-obfuscator
 /usr/bin/wg-obfuscator --help | grep -i masking
 ```
+
+Пакет `obfmesh-balance` здесь не ставится. Он необязательный, ему нужны уже поднятые лучи и
+секции Forkop, переведённые на адрес базового луча, поэтому у него свой шаг 10.
 
 При обновлении с 1.1.0: `/etc/config/obfmesh` объявлен в `conffiles`, поэтому токен и `server_url`
 остаются, а новый образец конфига ложится рядом как `.apk-new`. Ручной костыль
@@ -257,7 +260,7 @@ install -m 0755 wg-obfuscator /usr/bin/wg-obfuscator
 
 ```sh
 ls -l /usr/lib/obfmesh/ /usr/bin/obfmesh     # apply.sh, watcher.sh, tune.sh, lib.sh
-obfmesh version                               # 1.2.0
+obfmesh version                               # 1.3.0
 grep -c token /etc/config/obfmesh             # токен пережил обновление
 ls /etc/config/obfmesh*                       # obfmesh и, возможно, obfmesh.apk-new
 ping -c2 8.8.8.8                              # интернет через Forkop жив
@@ -336,7 +339,7 @@ ip rule show | grep 5182
 ```sh
 ip link show agg0 2>/dev/null && echo 'ОСТАТОК: agg0'
 ip route show table 51820 | grep . && echo 'ОСТАТОК: таблица 51820'
-ip rule show | grep ' 30000:' && echo 'ОСТАТОК: правило oif agg0'
+ip rule show | grep -E '^30000:' && echo 'ОСТАТОК: правило oif agg0'
 ip -4 addr show | grep '10\.77\.0\.' && echo 'ОСТАТОК: агрегатный адрес'
 ```
 
@@ -415,14 +418,25 @@ obfmesh spokes 2          # рабочее значение
 `[R]` — до переключения зафиксируйте, как есть:
 
 ```sh
-uci show forkop > /root/forkop.before-obfmesh 2>/dev/null
+( umask 077; uci show forkop > /root/forkop.before-obfmesh 2>/dev/null )
+chmod 600 /root/forkop.before-obfmesh
+ls -l /root/forkop.before-obfmesh          # -rw-------
 grep -n bind_interface /root/forkop.before-obfmesh || echo 'привязок не было'
 ```
 
-Дальше — точечно, по одной секции: тяжёлое на один луч, мелкое и разговорчивое на другой.
+**Снимок Forkop — файл с секретом.** В `uci show forkop` попадает `subscription_urls` секции,
+которая работает по подписке, — URL с токеном прямо в пути. Файл остаётся в `/root` на роутере:
+не копируется на рабочую машину, не кладётся в `/www` (каталог отдаётся наружу через проброс
+11228), не вставляется в переписку. `umask 077` действует только на создание, поэтому права
+на уже существующий файл доводит `chmod`.
+
+Дальше — точечно, по одной секции: тяжёлое на один луч, мелкое и разговорчивое на другой. `sed`
+в первой команде подменяет значения секретных опций на `<есть>` — тем же маркером obfmesh
+показывает наличие секрета в своих отчётах. Без него на экран уедет URL подписки.
 
 ```sh
-uci show forkop | grep -E 'bind_interface|=.*section' | head -20
+uci show forkop | sed -E "s/^([^=]*(urls?|token|key|secret|password|uuid))=.*/\1='<есть>'/" |
+	grep -E 'bind_interface|=.*section'
 
 uci set forkop.<секция_1>.bind_interface='owg1'
 uci set forkop.<секция_2>.bind_interface='owg2'
@@ -457,21 +471,159 @@ curl -s https://ifconfig.me; echo      # внешний адрес снова п
 
 ---
 
+## Шаг 10. Балансировка соединений по лучам (пакет obfmesh-balance)
+
+Шаг необязательный. В шаге 9 по лучам разведены сервисы, здесь — отдельные соединения: все
+балансируемые секции Forkop выходят с адреса одного луча, а каким лучом пойдёт конкретное
+соединение, решает цепочка nft. Делается после того, как шаг 9 отработал хотя бы сутки.
+Обоснование, устройство цепочки и полный разбор — INSTALL.md, раздел 3.8; здесь порядок и точки
+отката.
+
+Нужен obfmesh **1.3.0 или новее**: до неё первый же `obfmesh apply` сносил правила `31000+i`
+балансировщика как чужие в своих таблицах.
+
+`[R]` — проверка перед установкой, ничего не меняет:
+
+```sh
+obfmesh version | head -1                      # 1.3.0 или новее, иначе дальше нельзя
+uname -r                                       # 6.1.141 — ядро FriendlyElec
+ls /lib/modules/$(uname -r)/nft_numgen.ko      # модуль в прошивке; kmod-* на неё не ставят
+jsonfilter -i /etc/sing-box/config.json -e '@.route.default_mark'   # 134217728 = 0x08000000
+```
+
+Установка. Пакет приходит выключенным и в этом состоянии не создаёт ни строки в nft, ни одного
+`ip rule`:
+
+```sh
+apk add --allow-untrusted ./obfmesh-balance-1.0.0-r1.apk
+obfmesh-balance version
+obfmesh-balance check          # пакет ещё выключен; смотрим, что помешает включить
+```
+
+Секции Forkop переезжают с `bind_interface` на адрес базового луча. `bind_interface` выбирает луч
+до `connect()`, а цепочка живёт в `hook output`, то есть уже после, — такая секция в балансировку
+просто не попадёт; `routing_mark` не работает вовсе (SPEC.md, «Что проверено и отвергнуто», п. 5).
+`commit` и `restart` идут последними и ровно один раз: sing-box перечитывает конфигурацию только
+при старте, а рестарт рвёт все соединения через прокси, поэтому — в тихое время.
+
+Состав секций берётся с самого роутера: он живёт в Forkop и меняется без нас, поэтому списка секций
+здесь нет. Включённая секция не значит переводимая. На боевом R3S на 22.08.2026 включённых семь, а
+`outbound_json` есть у шести: седьмая (`proxysvc`) работает по подписке, узлы ей приходят извне, ни
+к какому лучу она не привязана — переводить в ней нечего. Из шести одна (`speedtest`) уже вышла на
+адрес базового луча ещё при проверке `routing_mark` — такие пропускаются, переписывать их второй
+раз нечего. Цикл, который печатает готовые `uci set` под свой состав и сам пропускает и уже
+переведённые секции, и секции без `outbound_json`, — INSTALL.md, 3.8.2.
+
+Снимок `/root/forkop.before-balance` — такой же файл с секретом, как в шаге 9: в нём URL подписки
+с токеном. Права `600`, лежит только на роутере, в `/www` и в переписку не уходит.
+
+```sh
+( umask 077; uci show forkop > /root/forkop.before-balance )
+chmod 600 /root/forkop.before-balance
+ls -l /root/forkop.before-balance          # -rw-------, в файле URL подписки с токеном
+
+# состав: все включённые секции — подлежит ли переводу, имя, исходящий, привязка отдельной опцией
+for s in $(uci -q show forkop | sed -n 's/^forkop\.\([A-Za-z0-9_]\{1,\}\)=section$/\1/p'); do
+	[ "$(uci -q get "forkop.$s.enabled" 2>/dev/null)" = 0 ] && continue
+	oj="$(uci -q get "forkop.$s.outbound_json" 2>/dev/null)"
+	bi="$(uci -q get "forkop.$s.bind_interface" 2>/dev/null)"
+	if [ -n "$oj" ]; then mark='перевод'
+	elif [ -n "$bi" ]; then mark='руками'
+	else mark='пропуск'
+	fi
+	printf '%s\t%s\t%s\tbind_interface=%s\n' "$mark" "$s" "$oj" "$bi"
+done
+
+# по одной строке на каждую секцию, помеченную «перевод», КРОМЕ тех, где уже стоит
+# inet4_bind_address базового луча; тег у секции остаётся прежним
+uci set forkop.<секция>.outbound_json='{"type":"direct","tag":"<прежний тег>","inet4_bind_address":"10.77.1.2"}'
+uci -q delete forkop.<секция>.bind_interface   # только если привязка стояла отдельной опцией
+
+uci commit forkop
+/etc/init.d/forkop restart
+```
+
+Включение делается сразу за перезапуском Forkop: между этими двумя блоками все переведённые секции
+идут одним базовым лучом, а это около 180 Мбит/с на всех.
+
+```sh
+obfmesh-balance check                    # ноль проблем — можно включать
+obfmesh-balance on                       # enabled = 1 и сразу применить
+/etc/init.d/obfmesh-balance enable
+/etc/init.d/obfmesh-balance start        # без демона веса никто не считает
+```
+
+**Проверка.**
+
+```sh
+obfmesh-balance status                        # WEIGHT и KERNEL совпадают
+nft list table inet obfmesh_balance           # карта весов покрывает 0-99 без дыр
+ip rule show | grep -E '^310[0-9][0-9]:'      # правило каждого небазового луча
+ip rule show | grep -E '^315[0-9][0-9]:'      # и его страховка blackhole
+wg show owg1 transfer; wg show owg2 transfer  # растут оба, а не один
+obfmesh-balance logs -n 50
+```
+
+Ожидается: таблица есть, у каждого небазового луча ровно два правила — `31000+i` в таблицу луча и
+`31500+i` с тем же селектором и действием `blackhole`, — колонки `WEIGHT` и `KERNEL` совпадают,
+счётчики растут у обоих лучей.
+
+**Откат.** Мягко, дав дожить соединениям, уже переброшенным на небазовые лучи:
+
+```sh
+obfmesh-balance off                      # новые соединения идут базовым лучом
+                                         # демон НЕ останавливать: он снимет остальное сам
+sleep 660                                # OMB_SOFT_GRACE 600 с плюс такт демона
+ip rule show | grep -E '^31[05][0-9][0-9]:' || echo 'правил и страховок нет'
+nft list table inet obfmesh_balance 2>/dev/null || echo 'таблицы нет'
+/etc/init.d/obfmesh-balance stop
+/etc/init.d/obfmesh-balance disable
+```
+
+Немедленно, ценой зависших соединений, — `obfmesh-balance off` и следом `obfmesh-balance teardown`;
+почему именно в таком порядке, написано в «Полном откате». Секции Forkop возвращаются к прежней
+привязке по снимку `/root/forkop.before-balance` — в той форме, в какой она там записана
+(`outbound_json` целиком или отдельная опция секции), — отдельным шагом и только после того, как
+балансировка снята.
+
+---
+
 ## Полный откат
 
 `[R]`
 
 ```sh
 # вернуть секциям потребителя прежний интерфейс (шаг 9)
+
+# балансировщик снимается ПЕРВЫМ, если он ставился: состав лучей он читает у obfmesh,
+# и снятый раньше времени obfmesh оставил бы его правила смотреть в пустые таблицы
+obfmesh-balance off                      # СНАЧАЛА выключить, иначе демон соберёт всё заново
+obfmesh-balance teardown                 # таблица nft, правила 31000+i, страховки 31500+i
+apk del obfmesh-balance                  # его prerm делает то же самое ещё раз, это безвредно
+
 /etc/init.d/obfmesh stop
 /etc/init.d/obfmesh disable
 apk del luci-app-obfmesh obfmesh
 rm -rf /etc/obfmesh /var/run/obfmesh
 ip link show owg1 2>/dev/null || echo 'лучи убраны'
 ip route show table 51821                # должно быть пусто
-ip rule show | grep -E ' 3200[0-9]:' || echo 'правил нет'
+ip rule show | grep -E '^320[0-9][0-9]:' || echo 'правил нет'
+ip rule show | grep -E '^31[05][0-9][0-9]:' || echo 'следов балансировщика нет'
+nft list table inet obfmesh_balance 2>/dev/null || echo 'таблицы балансировщика нет'
 ping -c2 8.8.8.8
 ```
+
+`off` перед `teardown` — не вежливость, а условие того, что `teardown` вообще подействует. Он
+снимает вместе с таблицей и подписи в `/var/run/obfmesh-balance`, а демон при `enabled = 1` видит
+на ближайшем такте, что подписи не сходятся, и собирает таблицу и правила заново — то есть через
+`interval` секунд (по умолчанию пять) всё возвращается на место. Дальше `apk del` со своим `prerm`
+попадает в ту же ловушку: `prerm` зовёт `teardown` до того, как apk остановит сервис.
+
+`teardown` здесь не лишний шаг. Остановка сервиса — `/etc/init.d/obfmesh-balance stop` — **мягкая**:
+она оставляет таблицу и правила в ядре ради соединений, уже переброшенных на небазовые лучи. Всё
+своё снимает только `teardown`, сам по себе или из `prerm`. Эти соединения после него не рвутся, а
+виснут до таймаута приложения: запись conntrack переживает снятие таблицы, а сбросить её нечем —
+утилиты `conntrack` на роутере нет.
 
 `[S]`
 
