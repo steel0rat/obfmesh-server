@@ -171,7 +171,7 @@ install -m 0755 wg-obfuscator /usr/local/bin/wg-obfuscator
 ```sh
 OBFMESH_EXTERNAL_HOST=45.136.127.10 \
 OBFMESH_OBFUSCATOR_BIN=/usr/local/bin/wg-obfuscator \
-apt-get install -y ./obfmesh-server_1.3.0-1_all.deb
+apt-get install -y ./obfmesh-server_1.4.0-1_all.deb
 ```
 
 Обе переменные необязательны и читаются только при первом создании строки настроек. Без

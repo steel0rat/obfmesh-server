@@ -4,8 +4,8 @@
 `.apk`/`.ipk` для роутера и `.deb` для сервера. Установка собранного описана в
 [INSTALL.md](INSTALL.md), контракт компонентов — в [SPEC.md](SPEC.md).
 
-Текущая версия релиза — **1.3.0**. Она записана в четырёх местах, и все четыре поднимаются одной
-правкой (раздел 4.1).
+Текущая версия релиза — **1.4.0**. Она записана в четырёх местах, и все четыре поднимаются одной
+правкой (раздел 4.1). `obfmesh-balance` версионируется отдельно, сейчас он **1.2.0**.
 
 ## 1. Что во что упаковывается
 
@@ -148,9 +148,9 @@ make package/luci-app-obfmesh/compile V=s
 find bin -name 'obfmesh-*' -o -name 'luci-app-obfmesh-*'
 ```
 
-Ожидаемые имена: `obfmesh-1.3.0-r1.apk` и `luci-app-obfmesh-1.3.0-r1.apk` (`.apk` — это
+Ожидаемые имена: `obfmesh-1.4.0-r1.apk` и `luci-app-obfmesh-1.4.0-r1.apk` (`.apk` — это
 `<имя>-<PKG_VERSION>-r<PKG_RELEASE>.apk`; для ipk то же самое выглядит как
-`obfmesh_1.3.0-r1_all.ipk`).
+`obfmesh_1.4.0-r1_all.ipk`).
 
 Опций сборки у пакета нет. Символ `CONFIG_PACKAGE_obfmesh_teql`, который в 1.1.0 подтягивал
 `kmod-sched-teql`, удалён вместе с режимом `teql`: он не работал в принципе (SPEC, «Что проверено и
@@ -174,14 +174,14 @@ endef
 
 Отсюда два правила:
 
-1. Обновляться только пакетом (`apk add ./obfmesh-1.3.0-r1.apk`) или через `install-nosdk.sh`,
+1. Обновляться только пакетом (`apk add ./obfmesh-1.4.0-r1.apk`) или через `install-nosdk.sh`,
    который существующий `/etc/config/obfmesh` не трогает. Ручной `cp -r files/* /` — способ
    потерять токен, и он не делается никогда.
 2. После каждой сборки проверять, что объявление на месте, — на устройстве, обновлением поверх:
 
 ```sh
 md5sum /etc/config/obfmesh
-apk add --allow-untrusted ./obfmesh-1.3.0-r1.apk
+apk add --allow-untrusted ./obfmesh-1.4.0-r1.apk
 md5sum /etc/config/obfmesh      # хеш обязан совпасть со снятым до обновления
 ls /etc/config/obfmesh*         # новый образец лёг рядом как obfmesh.apk-new
 grep -c token /etc/config/obfmesh
@@ -200,7 +200,7 @@ grep -c token /etc/config/obfmesh
 Для ipk то же самое видно прямо в пакете, без установки:
 
 ```sh
-tar -xzOf obfmesh_1.3.0-r1_all.ipk ./control.tar.gz | tar -xzO ./conffiles
+tar -xzOf obfmesh_1.4.0-r1_all.ipk ./control.tar.gz | tar -xzO ./conffiles
 ```
 
 ### 2.6 Что ещё проверить в собранном пакете
@@ -208,14 +208,14 @@ tar -xzOf obfmesh_1.3.0-r1_all.ipk ./control.tar.gz | tar -xzO ./conffiles
 На сборочной машине — что список файлов и права те, что задумывались (для ipk):
 
 ```sh
-tar -xzOf bin/.../obfmesh_1.3.0-r1_all.ipk ./data.tar.gz | tar -tvz
-tar -xzOf bin/.../obfmesh_1.3.0-r1_all.ipk ./control.tar.gz | tar -xzO ./control
+tar -xzOf bin/.../obfmesh_1.4.0-r1_all.ipk ./data.tar.gz | tar -tvz
+tar -xzOf bin/.../obfmesh_1.4.0-r1_all.ipk ./control.tar.gz | tar -xzO ./control
 ```
 
 Для apk удобнее проверять на устройстве, до установки:
 
 ```sh
-apk add --allow-untrusted --simulate ./obfmesh-1.3.0-r1.apk
+apk add --allow-untrusted --simulate ./obfmesh-1.4.0-r1.apk
 ```
 
 `apk add` принимает путь к файлу наравне с именем пакета, а `--simulate` показывает, что было бы
@@ -341,7 +341,7 @@ apk add obfmesh luci-app-obfmesh
 ### 2.9 Пакет obfmesh-balance
 
 Балансировщик соединений (SPEC.md, «Балансировка соединений по лучам») — отдельный пакет со своей
-версией, `1.1.0`. Тот же SDK, те же команды, никаких особенностей сборки: скрипты POSIX sh,
+версией, `1.2.0`. Тот же SDK, те же команды, никаких особенностей сборки: скрипты POSIX sh,
 `PKGARCH:=all`, компилировать нечего.
 
 ```sh
@@ -355,7 +355,7 @@ make package/obfmesh-balance/compile V=s
 find bin -name 'obfmesh-balance-*'
 ```
 
-Ожидаемое имя — `obfmesh-balance-1.1.0-r1.apk` (для ipk: `obfmesh-balance_1.1.0-r1_all.ipk`).
+Ожидаемое имя — `obfmesh-balance-1.2.0-r1.apk` (для ipk: `obfmesh-balance_1.2.0-r1_all.ipk`).
 В собственном feed каталог кладётся рядом с двумя другими и подхватывается тем же
 `./scripts/feeds install -a -p obfmesh`.
 
@@ -394,7 +394,7 @@ vermagic не совпадает — ровно та же история, из-�
 **Что должно быть верно в собранном пакете:**
 
 ```sh
-apk add --allow-untrusted --simulate ./obfmesh-balance-1.1.0-r1.apk
+apk add --allow-untrusted --simulate ./obfmesh-balance-1.2.0-r1.apk
 apk info -L obfmesh-balance      # шесть файлов и ни одного лишнего
 apk info -R obfmesh-balance      # obfmesh, nftables, jsonfilter, ip-full — и ни одного kmod-*
 ls -l /etc/config/obfmesh-balance          # 600
@@ -445,11 +445,11 @@ ls -l /etc/init.d/obfmesh-balance          # 755, START=96, STOP=9
   работу это не влияет — оба подключаются через `.`;
 - в базе apk файлов нет, поэтому `apk info -L/-R`, `apk manifest` и `apk del` про них не знают.
 
-**Порядок выката.** Сначала obfmesh 1.3.0, потом балансировщик. obfmesh 1.2.0 сносит любое чужое
-правило, смотрящее в его таблицы, и первый же его `apply` унесёт правила `31000+i`. Балансировщик
-это переживает (демон вернёт правила на следующем такте), но между двумя событиями помеченный
-пакет уходит в главную таблицу. Порядок держится не на памяти оператора: `install-nosdk.sh`
-на старом obfmesh откажется ставить пакет, `postinst` напечатает предупреждение.
+**Порядок выката.** Сначала obfmesh, и не ниже 1.3.0, потом балансировщик. obfmesh 1.2.0 сносит
+любое чужое правило, смотрящее в его таблицы, и первый же его `apply` унесёт правила `31000+i`.
+Балансировщик это переживает (демон вернёт правила на следующем такте), но между двумя событиями
+помеченный пакет уходит в главную таблицу. Порядок держится не на памяти оператора:
+`install-nosdk.sh` на старом obfmesh откажется ставить пакет, `postinst` напечатает предупреждение.
 
 ---
 
@@ -495,7 +495,7 @@ cd server
 make deb
 ```
 
-На выходе — `dist/obfmesh-server_1.3.0-1_all.deb`. Требуется только `dpkg-deb` (пакет `dpkg`,
+На выходе — `dist/obfmesh-server_1.4.0-1_all.deb`. Требуется только `dpkg-deb` (пакет `dpkg`,
 который есть на любой Debian/Ubuntu) и `make`; ни debhelper, ни dh-python не нужны, поэтому пакет
 собирается прямо на сервере из копии репозитория. На машине без dpkg — в контейнере:
 
@@ -517,7 +517,7 @@ tar -cf - --exclude build --exclude dist . |
 | `make clean` / `distclean` | убрать `build/`, `dist/` (и `vendor/wheels`) |
 
 Версия пакета собирается из одного места — `__version__` в `server/obfmesh/__init__.py` — плюс
-ревизия упаковки: `make deb DEB_REVISION=2` даст `1.3.0-2`. Ревизия поднимается, когда меняется
+ревизия упаковки: `make deb DEB_REVISION=2` даст `1.4.0-2`. Ревизия поднимается, когда меняется
 только упаковка (юнит, зависимости, maintainer-скрипты), а код сервера тот же.
 
 ### 3.3 Что кладёт пакет
@@ -585,7 +585,7 @@ make wheels WHEEL_PYVERSION=3.11 WHEEL_ABI=cp311     # Debian 12
 Проверка, что колёса попали в пакет и используются:
 
 ```sh
-dpkg-deb -c dist/obfmesh-server_1.3.0-1_all.deb | grep wheels
+dpkg-deb -c dist/obfmesh-server_1.4.0-1_all.deb | grep wheels
 # при установке в логе: "installing the python dependencies from the wheels vendored in the package"
 ```
 
@@ -603,7 +603,7 @@ dpkg-deb -c dist/obfmesh-server_1.3.0-1_all.deb | grep wheels
 systemctl disable --now obfmesh-server
 rm -f /etc/systemd/system/obfmesh-server.service /usr/local/sbin/obfmesh-ctl
 systemctl daemon-reload
-apt-get install -y ./obfmesh-server_1.3.0-1_all.deb
+apt-get install -y ./obfmesh-server_1.4.0-1_all.deb
 ```
 
 База `/var/lib/obfmesh/obfmesh.db`, ключи в `/etc/obfmesh` и работающие обфускаторы при этом
@@ -617,23 +617,27 @@ apt-get install -y ./obfmesh-server_1.3.0-1_all.deb
 
 | Файл | Переменная | Значение в этом релизе | Куда попадает |
 |---|---|---|---|
-| `server/obfmesh/__init__.py` | `__version__` | `1.3.0` | `GET /api/status`, `obfmesh-ctl --version`, версия `.deb` |
-| `openwrt/obfmesh/Makefile` | `PKG_VERSION`, `PKG_RELEASE` | `1.3.0`, `1` | имя файла пакета, метаданные apk |
-| `openwrt/obfmesh/files/usr/lib/obfmesh/lib.sh` | `OM_VERSION` | `1.3.0` | `obfmesh status`, `obfmesh version`, заголовок `User-Agent` |
-| `luci/luci-app-obfmesh/Makefile` | `PKG_VERSION`, `PKG_RELEASE` | `1.3.0`, `1` | имя файла пакета |
+| `server/obfmesh/__init__.py` | `__version__` | `1.4.0` | `GET /api/status`, `obfmesh-ctl --version`, версия `.deb` |
+| `openwrt/obfmesh/Makefile` | `PKG_VERSION`, `PKG_RELEASE` | `1.4.0`, `1` | имя файла пакета, метаданные apk |
+| `openwrt/obfmesh/files/usr/lib/obfmesh/lib.sh` | `OM_VERSION` | `1.4.0` | `obfmesh status`, `obfmesh version`, заголовок `User-Agent` |
+| `luci/luci-app-obfmesh/Makefile` | `PKG_VERSION`, `PKG_RELEASE` | `1.4.0`, `1` | имя файла пакета |
 
 Правило простое: у релиза одна версия `X.Y.Z` на все четыре места, поднимаются они одной правкой.
 `PKG_RELEASE` (и `DEB_REVISION` у сервера) поднимается отдельно, когда меняется только упаковка.
-В 1.3.0 код сервера не менялся — версия поднята вместе с остальными, потому что она у релиза одна;
-формат бандла тот же, и пара «клиент 1.3.0 — сервер 1.2.0» работает (4.3).
+Ни в 1.3.0, ни в 1.4.0 код сервера не менялся — версия поднята вместе с остальными, потому что она
+у релиза одна; формат бандла тот же, и пара «клиент 1.4.0 — сервер 1.2.0» работает (4.3).
 
 `obfmesh-balance` версионируется отдельно — он не участвует в контракте бандла и меняется своим
 темпом. Мест два, и они поднимаются вместе:
 
 | Файл | Переменная | Значение | Куда попадает |
 |---|---|---|---|
-| `openwrt/obfmesh-balance/Makefile` | `PKG_VERSION`, `PKG_RELEASE` | `1.1.0`, `1` | имя файла пакета, метаданные apk |
-| `openwrt/obfmesh-balance/files/usr/lib/obfmesh-balance/lib.sh` | `OMB_VERSION` | `1.1.0` | `obfmesh-balance status`, `version`, `check`, `state.json` |
+| `openwrt/obfmesh-balance/Makefile` | `PKG_VERSION`, `PKG_RELEASE` | `1.2.0`, `1` | имя файла пакета, метаданные apk |
+| `openwrt/obfmesh-balance/files/usr/lib/obfmesh-balance/lib.sh` | `OMB_VERSION` | `1.2.0` | `obfmesh-balance status`, `version`, `check`, `state.json` |
+
+Эти два значения сверяет тест `openwrt/obfmesh-balance/tests/run.sh` («версия пакета одна и та же
+в Makefile и в lib.sh»): разъезжаются они молча — apk ставит одну версию, а роутер на вопрос
+отвечает другой.
 
 Балансировщику нужен obfmesh **не ниже 1.3.0**: до неё его `apply` сносил правила `31000+i` как
 чужие в своих таблицах. В `DEPENDS` этого не выразить — сборочная система читает там имя пакета, а
@@ -660,18 +664,20 @@ ip rule show | grep -E '^310[0-9][0-9]:'   # правила на месте — 
 grep -rn 'PKG_VERSION\|OM_VERSION\|__version__' \
      openwrt/obfmesh/Makefile luci/luci-app-obfmesh/Makefile \
      openwrt/obfmesh/files/usr/lib/obfmesh/lib.sh server/obfmesh/__init__.py
-grep -rn '1\.2\.0' --include=Makefile --include='*.sh' --include='*.py' --include='*.md' .
+grep -rn '1\.3\.0' --include=Makefile --include='*.sh' --include='*.py' --include='*.md' .
 ```
 
-Вторая команда должна оставлять только исторические упоминания: прежние релизы в CHANGELOG.md и
-разбор перехода 1.1.0 → 1.2.0 в этом файле.
+Вторая команда должна оставлять только исторические упоминания и нижнюю границу obfmesh для
+балансировщика: прежние релизы в CHANGELOG.md, разбор переходов в этом файле, `OMB_NEED` в
+`openwrt/obfmesh-balance/Makefile` и `NEED_OM` в его `install-nosdk.sh`. Граница держится на
+свойстве, а не на номере последнего релиза, и вместе с версией не двигается.
 
 ### 4.2 Что считается ломающим изменением
 
 Совместимость определяется одним: разберёт ли клиент бандл. Разбор — `jsonfilter` по фиксированным
 путям плюс проверка `om_bundle_validate()` в `lib.sh`.
 
-Клиент 1.2.0 и 1.3.0 (список требований у них общий — формат бандла между ними не менялся)
+Клиент 1.2.0, 1.3.0 и 1.4.0 (список требований у них общий — формат бандла между ними не менялся)
 **требует** и отвергает бандл целиком, если чего-то нет:
 
 - `config_version` — число;
@@ -723,15 +729,15 @@ grep -rn '1\.2\.0' --include=Makefile --include='*.sh' --include='*.py' --includ
 последней принятой конфигурации, то есть на схеме с `agg0`, которой на сервере уже нет. Поэтому
 откат на 1.1.0 делается только с обеих сторон сразу (DEPLOY.md, шаг 6).
 
-Переход 1.2.0 → 1.3.0 к бандлу отношения не имеет: формат тот же, код сервера тот же, любая пара
-версий из этих двух работает в обе стороны. Порядок важен только на роутере и по другой причине:
-obfmesh обновляется **раньше** obfmesh-balance, иначе первый же `apply` унесёт его правила
+Переходы 1.2.0 → 1.3.0 → 1.4.0 к бандлу отношения не имеют: формат тот же, код сервера тот же,
+любая пара версий из этих трёх работает в обе стороны. Порядок важен только на роутере и по другой
+причине: obfmesh обновляется **раньше** obfmesh-balance, иначе первый же `apply` унесёт его правила
 `31000+i` (2.9).
 
 Проверка после выката, на роутере:
 
 ```sh
-obfmesh version                 # 1.3.0 и config_version применённого бандла
+obfmesh version                 # 1.4.0 и config_version применённого бандла
 obfmesh status | head -20       # applied N s ago — бандл принят, а не отвергнут
 logread -e obfmesh | grep -i 'rejected the downloaded bundle'   # пусто
 ```
