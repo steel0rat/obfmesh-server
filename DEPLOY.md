@@ -905,7 +905,7 @@ obfmesh version | head -1                     # 1.4.0 или новее, ина�
 obfmesh status                                # хотя бы один луч LINK up со свежим рукопожатием
 ip rule show | grep -E '^30[05][0-9][0-9]:' || echo 'полоса 30000+i и 30500+i свободна'
 nft list tables | grep obfmesh_onwatch        || echo 'своей таблицы нет'
-command -v tcpdump curl                       # оба обязательны
+for t in tcpdump curl; do command -v "$t" >/dev/null || echo "НЕТ: $t"; done   # оба обязательны
 ```
 
 И то, на чём держится весь источник имён, — что ответы DNS действительно летят по петле открытым
